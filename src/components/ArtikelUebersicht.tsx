@@ -1,31 +1,42 @@
 import React, { useState } from 'react';
-import { useSelector, useDispatch } from 'react-redux';
-import { RootState } from '../store';
+import { useDispatch } from 'react-redux';
 import { artikelHinzufuegen } from '../store/warenkorbSlice';
-import { Artikel } from '../types';
+import type { Artikel } from '../types';
 import PreisDialog from './PreisDialog';
 
 interface ArtikelUebersichtProps {
-  artikel: Artikel[];
+  artikel?: Artikel[];
 }
 
-const ArtikelUebersicht: React.FC<ArtikelUebersichtProps> = ({ artikel }) => {
+const ArtikelUebersicht: React.FC<ArtikelUebersichtProps> = ({ artikel = [] }) => {
   const dispatch = useDispatch();
   const [suchbegriff, setSuchbegriff] = useState('');
-  const [ausgewaehlterArtikel, setAusgewaehlterArtikel] = useState<Artikel | null>(null);
-  
-  const gefilterteArtikel = artikel.filter((artikel) => 
+  const [selectedArtikel, setSelectedArtikel] = useState<Artikel | null>(null);
+  const [showPreisDialog, setShowPreisDialog] = useState(false);
+
+  const gefilterteArtikel = (artikel || []).filter((artikel) => 
     artikel.name.toLowerCase().includes(suchbegriff.toLowerCase())
   );
 
   const handleArtikelClick = (artikel: Artikel) => {
-    setAusgewaehlterArtikel(artikel);
+    setSelectedArtikel(artikel);
+    setShowPreisDialog(true);
   };
 
-  const handlePreisBestaetigt = (artikel: Artikel, preis: number) => {
-    const artikelMitPreis = { ...artikel, preis };
-    dispatch(artikelHinzufuegen(artikelMitPreis));
-    setAusgewaehlterArtikel(null);
+  const handlePreisDialogClose = () => {
+    setShowPreisDialog(false);
+    setSelectedArtikel(null);
+  };
+
+  const handlePreisDialogConfirm = (menge: number) => {
+    if (selectedArtikel) {
+      dispatch(artikelHinzufuegen(selectedArtikel));
+      // Wenn mehrere Artikel hinzugefügt werden sollen, dispatche die Aktion mehrmals
+      for (let i = 1; i < menge; i++) {
+        dispatch(artikelHinzufuegen(selectedArtikel));
+      }
+    }
+    handlePreisDialogClose();
   };
 
   return (
@@ -40,23 +51,24 @@ const ArtikelUebersicht: React.FC<ArtikelUebersichtProps> = ({ artikel }) => {
         />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
         {gefilterteArtikel.map((artikel) => (
           <button
             key={artikel.id}
-            className="p-6 border rounded-lg hover:shadow-lg transition-shadow bg-white text-center"
             onClick={() => handleArtikelClick(artikel)}
+            className="bg-white p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow text-left"
           >
-            <h3 className="text-xl font-medium">{artikel.name}</h3>
+            <h3 className="font-semibold mb-2 truncate">{artikel.name}</h3>
+            <p className="text-green-600 font-medium">{artikel.preis.toFixed(2)} €</p>
           </button>
         ))}
       </div>
 
-      {ausgewaehlterArtikel && (
+      {showPreisDialog && selectedArtikel && (
         <PreisDialog
-          artikel={ausgewaehlterArtikel}
-          onPreisBestaetigt={handlePreisBestaetigt}
-          onAbbrechen={() => setAusgewaehlterArtikel(null)}
+          artikel={selectedArtikel}
+          onClose={handlePreisDialogClose}
+          onConfirm={handlePreisDialogConfirm}
         />
       )}
     </div>

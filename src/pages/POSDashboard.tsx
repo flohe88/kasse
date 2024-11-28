@@ -6,7 +6,7 @@ import Warenkorb from '../components/Warenkorb';
 import Zahlungsabwicklung from '../components/Zahlungsabwicklung';
 
 const POSDashboard: React.FC = () => {
-  const artikel = useSelector((state: RootState) => state.artikel.liste);
+  const artikel = useSelector((state: RootState) => state.artikel.artikel);
   const { gesamtbetrag } = useSelector((state: RootState) => state.warenkorb);
 
   return (

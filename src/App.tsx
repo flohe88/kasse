@@ -10,7 +10,7 @@ import './App.css';
 
 const MainContent: React.FC = () => {
   const [showVerkaufsUebersicht, setShowVerkaufsUebersicht] = useState(false);
-  const artikel = useSelector((state: RootState) => state.artikel.liste);
+  const artikel = useSelector((state: RootState) => state.artikel.artikel);
   const { gesamtbetrag } = useSelector((state: RootState) => state.warenkorb);
 
   return (
@@ -29,17 +29,15 @@ const MainContent: React.FC = () => {
         {showVerkaufsUebersicht ? (
           <VerkaufsUebersicht />
         ) : (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
               <ArtikelUebersicht artikel={artikel} />
-              <Warenkorb />
             </div>
-            {gesamtbetrag > 0 && (
-              <div className="mt-6">
-                <Zahlungsabwicklung />
-              </div>
-            )}
-          </>
+            <div>
+              <Warenkorb />
+              {gesamtbetrag > 0 && <Zahlungsabwicklung />}
+            </div>
+          </div>
         )}
       </div>
     </div>

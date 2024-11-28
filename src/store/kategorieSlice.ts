@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { Kategorie } from '../types';
+import type { Kategorie } from '../types';
 
 interface KategorieState {
   liste: Kategorie[];
@@ -12,16 +12,19 @@ const initialState: KategorieState = {
   liste: [
     {
       id: 1,
-      name: 'Mode',
+      name: 'Deko',
+      erstellt_am: new Date().toISOString()
     },
     {
       id: 2,
-      name: 'Deko',
+      name: 'Mode',
+      erstellt_am: new Date().toISOString()
     },
     {
       id: 3,
       name: 'Accessoires',
-    },
+      erstellt_am: new Date().toISOString()
+    }
   ],
   ausgewaehlteKategorie: null,
   isLoading: false,
