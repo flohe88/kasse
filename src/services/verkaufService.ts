@@ -1,19 +1,18 @@
 import { supabase } from './supabase';
-import { Verkauf, VerkaufArtikel } from '../types';
+import { Verkauf } from '../types';
 
 const VERKAUEFE_KEY = 'verkaufe';
 
-// Hilfsfunktion zum Formatieren von Zahlen
 const formatNumber = (num: number): string => {
   return Number(num).toFixed(2);
 };
 
-export const speichereVerkauf = async (verkauf: Verkauf): Promise<Verkauf> => {
+export const speichereVerkauf = async (verkauf: Omit<Verkauf, 'id'>): Promise<Verkauf> => {
   try {
     const supabaseVerkauf = {
       datum: new Date().toISOString(),
       gesamtbetrag: formatNumber(verkauf.gesamtbetrag),
-      bezahlter_betrag: formatNumber(verkauf.bezahlterBetrag),
+      bezahlter_betrag: formatNumber(verkauf.bezahlter_betrag),
       rueckgeld: formatNumber(verkauf.rueckgeld),
       artikel: JSON.stringify(verkauf.artikel.map(artikel => ({
         artikel_name: artikel.artikel_name,
@@ -56,16 +55,11 @@ export const speichereVerkauf = async (verkauf: Verkauf): Promise<Verkauf> => {
       throw artikelError;
     }
 
-    const neuerVerkauf = {
+    const neuerVerkauf: Verkauf = {
       ...verkauf,
       id: data.id,
       datum: data.datum
     };
-
-    // Lokale Speicherung aktualisieren
-    const verkauefe = getVerkauefe();
-    verkauefe.push(neuerVerkauf);
-    localStorage.setItem(VERKAUEFE_KEY, JSON.stringify(verkauefe));
 
     return neuerVerkauf;
   } catch (error) {
@@ -76,15 +70,13 @@ export const speichereVerkauf = async (verkauf: Verkauf): Promise<Verkauf> => {
 
 export const getVerkauefe = (): Verkauf[] => {
   try {
-    const verkauefe = localStorage.getItem(VERKAUEFE_KEY);
-    return verkauefe ? JSON.parse(verkauefe) : [];
-  } catch (error) {
-    console.error('Fehler beim Laden der Verkäufe:', error);
+    return JSON.parse(localStorage.getItem(VERKAUEFE_KEY) || '[]');
+  } catch {
     return [];
   }
 };
 
-export const getVerkaeufeFuerTag = async (datum: Date): Promise<Verkauf[]> => {
+export const getVerkaeufeFuerTag = async (datum: string): Promise<Verkauf[]> => {
   try {
     console.log('Lade Verkäufe für Datum:', datum);
     const startDatum = new Date(datum);
@@ -110,39 +102,26 @@ export const getVerkaeufeFuerTag = async (datum: Date): Promise<Verkauf[]> => {
       return [];
     }
 
-    console.log('Rohdaten von Supabase:', verkauefe);
-
     // Konvertiere die Verkäufe
     const konvertierteVerkauefe = verkauefe.map(verkauf => {
       try {
-        // Prüfe ob artikel bereits ein Array ist
-        let artikelArray;
-        if (Array.isArray(verkauf.artikel)) {
-          artikelArray = verkauf.artikel;
-        } else {
-          try {
-            artikelArray = JSON.parse(verkauf.artikel || '[]');
-          } catch (e) {
-            console.error('Fehler beim Parsen der Artikel für Verkauf', verkauf.id, ':', e);
-            artikelArray = [];
-          }
-        }
+        let artikelArray = Array.isArray(verkauf.artikel) 
+          ? verkauf.artikel 
+          : JSON.parse(verkauf.artikel || '[]');
         
-        console.log(`Geparste Artikel für Verkauf ${verkauf.id} :`, artikelArray);
-
         return {
           ...verkauf,
           artikel: artikelArray,
           gesamtbetrag: Number(verkauf.gesamtbetrag),
-          bezahlter_betrag: Number(verkauf.bezahlter_betrag)
+          bezahlter_betrag: Number(verkauf.bezahlter_betrag),
+          rueckgeld: Number(verkauf.rueckgeld)
         };
       } catch (e) {
         console.error('Fehler bei der Konvertierung des Verkaufs', verkauf.id, ':', e);
         return null;
       }
-    }).filter(Boolean); // Entferne null-Werte
+    }).filter((v): v is Verkauf => v !== null);
 
-    console.log('Konvertierte Verkäufe:', konvertierteVerkauefe);
     return konvertierteVerkauefe;
   } catch (error) {
     console.error('Fehler beim Laden der Verkäufe:', error);
@@ -152,79 +131,25 @@ export const getVerkaeufeFuerTag = async (datum: Date): Promise<Verkauf[]> => {
 
 export const loescheVerkauf = async (verkaufId: number): Promise<void> => {
   try {
-    // Zuerst alle zugehörigen Artikel aus der verkauf_artikel Tabelle löschen
     const { error: deleteArtikelError } = await supabase
       .from('verkauf_artikel')
       .delete()
       .eq('verkauf_id', verkaufId);
 
     if (deleteArtikelError) {
-      console.error('Fehler beim Löschen der Verkaufsartikel:', deleteArtikelError);
       throw new Error('Fehler beim Löschen der Verkaufsartikel: ' + deleteArtikelError.message);
     }
 
-    // Dann den Verkauf selbst löschen
     const { error: deleteVerkaufError } = await supabase
       .from('verkaufe')
       .delete()
       .eq('id', verkaufId);
 
     if (deleteVerkaufError) {
-      console.error('Fehler beim Löschen des Verkaufs:', deleteVerkaufError);
       throw new Error('Fehler beim Löschen des Verkaufs: ' + deleteVerkaufError.message);
     }
-
-    console.log('Verkauf und zugehörige Artikel erfolgreich gelöscht');
   } catch (error) {
     console.error('Fehler beim Löschen des Verkaufs:', error);
-    throw error;
-  }
-};
-
-export const loescheArtikelAusVerkauf = async (verkaufId: number, artikelName: string): Promise<void> => {
-  try {
-    // Artikel aus der verkauf_artikel Tabelle löschen
-    const { error: deleteArtikelError } = await supabase
-      .from('verkauf_artikel')
-      .delete()
-      .eq('verkauf_id', verkaufId)
-      .eq('artikel_name', artikelName);
-
-    if (deleteArtikelError) {
-      console.error('Fehler beim Löschen des Artikels:', deleteArtikelError);
-      throw new Error('Fehler beim Löschen des Artikels: ' + deleteArtikelError.message);
-    }
-
-    // Gesamtbetrag des Verkaufs aktualisieren
-    const { data: verbleibende_artikel, error: artikelError } = await supabase
-      .from('verkauf_artikel')
-      .select('preis, menge')
-      .eq('verkauf_id', verkaufId);
-
-    if (artikelError) {
-      console.error('Fehler beim Laden der verbleibenden Artikel:', artikelError);
-      throw new Error('Fehler beim Laden der verbleibenden Artikel: ' + artikelError.message);
-    }
-
-    // Neuen Gesamtbetrag berechnen
-    const neuerGesamtbetrag = verbleibende_artikel.reduce((sum, artikel) => {
-      return sum + (Number(artikel.preis) * (artikel.menge || 1));
-    }, 0);
-
-    // Verkauf mit neuem Gesamtbetrag aktualisieren
-    const { error: updateError } = await supabase
-      .from('verkaufe')
-      .update({ gesamtbetrag: formatNumber(neuerGesamtbetrag) })
-      .eq('id', verkaufId);
-
-    if (updateError) {
-      console.error('Fehler beim Aktualisieren des Gesamtbetrags:', updateError);
-      throw new Error('Fehler beim Aktualisieren des Gesamtbetrags: ' + updateError.message);
-    }
-
-    console.log('Artikel erfolgreich gelöscht und Gesamtbetrag aktualisiert');
-  } catch (error) {
-    console.error('Fehler beim Löschen des Artikels:', error);
     throw error;
   }
 };
@@ -245,7 +170,11 @@ export const exportiereVerkaefeAlsCSV = async (startDatum: Date, endDatum: Date)
       const datumFormatiert = datum.toLocaleDateString('de-DE');
       const uhrzeitFormatiert = datum.toLocaleTimeString('de-DE');
 
-      return JSON.parse(verkauf.artikel).map(artikel => {
+      const artikel = typeof verkauf.artikel === 'string' 
+        ? JSON.parse(verkauf.artikel) 
+        : verkauf.artikel;
+
+      return artikel.map((artikel: { artikel_name: string; preis: number; menge?: number }) => {
         const menge = artikel.menge || 1;
         const einzelpreis = Number(artikel.preis);
         const gesamtpreis = einzelpreis * menge;

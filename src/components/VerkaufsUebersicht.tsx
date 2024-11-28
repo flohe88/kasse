@@ -1,22 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { getVerkaeufeFuerTag, exportiereVerkaefeAlsCSV, loescheArtikelAusVerkauf, loescheVerkauf } from '../services/verkaufService';
+import { getVerkaeufeFuerTag, exportiereVerkaefeAlsCSV, loescheVerkauf } from '../services/verkaufService';
 import { formatCurrency } from '../utils/format';
-import type { Verkauf as VerkaufType, VerkaufArtikel as VerkaufArtikelType } from '../types';
+import type { Verkauf } from '../types';
 
-interface Verkauf extends VerkaufType {
+interface VerkaufArtikel {
+  artikel_name: string;
+  preis: number;
+  menge?: number;
+}
+
+interface Verkauf {
   id: number;
   datum: string;
   gesamtbetrag: number;
   bezahlter_betrag: number;
   rueckgeld: number;
-  artikel: VerkaufArtikelType[];
-}
-
-interface VerkaufArtikel extends VerkaufArtikelType {
-  artikel_name: string;
-  preis: number;
-  menge?: number;
-  geloescht?: boolean;
+  artikel: VerkaufArtikel[];
 }
 
 const VerkaufsUebersicht: React.FC = () => {
@@ -30,7 +29,6 @@ const VerkaufsUebersicht: React.FC = () => {
     setIsLoading(true);
     try {
       const verkauefe = await getVerkaeufeFuerTag(selectedDate);
-      // Filtere Verkäufe ohne Artikel heraus
       const verkaeufeMitArtikeln = verkauefe.filter(verkauf => {
         try {
           const artikel = Array.isArray(verkauf.artikel) 
@@ -82,17 +80,11 @@ const VerkaufsUebersicht: React.FC = () => {
     }
   };
 
-  const handleDateChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setSelectedDate(event.target.value);
-  };
-
   const handleDelete = async (verkaufId: number) => {
     if (window.confirm('Möchten Sie diesen Verkauf wirklich löschen?')) {
       try {
         await loescheVerkauf(verkaufId);
-        // Aktualisiere die Verkäufe direkt in der State ohne neuen API-Call
         setVerkauefe(prevVerkauefe => prevVerkauefe.filter(v => v.id !== verkaufId));
-        // Aktualisiere auch den Tagesumsatz
         setTagesumsatz(prevUmsatz => 
           prevUmsatz - (verkauefe.find(v => v.id === verkaufId)?.gesamtbetrag || 0)
         );
@@ -100,6 +92,10 @@ const VerkaufsUebersicht: React.FC = () => {
         console.error('Fehler beim Löschen:', error);
       }
     }
+  };
+
+  const handleDateChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setSelectedDate(event.target.value);
   };
 
   if (isLoading) {
@@ -118,7 +114,7 @@ const VerkaufsUebersicht: React.FC = () => {
           <input
             type="date"
             value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
+            onChange={handleDateChange}
             className="px-4 py-2 border rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
           <button
